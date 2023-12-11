@@ -16,20 +16,28 @@
  */
 package org.apache.spark.sql.execution.vectorized;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-
 import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.types.*;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
+import org.apache.spark.sql.types.CalendarIntervalType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StringType;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.array.ByteArrayMethods;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 
 /**
  * This class adds write APIs to ColumnVector.
@@ -48,6 +56,24 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public abstract class WritableColumnVector extends ColumnVector {
   private final byte[] byte8 = new byte[8];
+
+  protected boolean loaded;
+  protected LazyColumnVectorLoader loader;
+
+  public void setLoader(LazyColumnVectorLoader loader) {
+    loaded = false;
+    this.loader = loader;
+  }
+
+  protected void assureLoad() {
+    if (loader == null || loaded) {
+      return;
+    }
+
+    loaded = true;  // set true in advance to avoid executing assureLoad again in loader
+    loader.load(this);
+    loader = null;
+  }
 
   /**
    * Resets this column for writing. The currently stored values are no longer accessible.

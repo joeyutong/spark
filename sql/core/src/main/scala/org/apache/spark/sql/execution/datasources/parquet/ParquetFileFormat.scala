@@ -259,6 +259,7 @@ class ParquetFileFormat
     val enableVectorizedReader: Boolean =
       ParquetUtils.isBatchReadSupportedForSchema(sqlConf, resultSchema)
     val enableRecordFilter: Boolean = sqlConf.parquetRecordFilterEnabled
+    val enableLazyRead: Boolean = sqlConf.parquetLazyReadEnabled
     val timestampConversion: Boolean = sqlConf.isParquetINT96TimestampConversion
     val capacity = sqlConf.parquetVectorizedReaderBatchSize
     val enableParquetFilterPushDown: Boolean = sqlConf.parquetFilterPushDown
@@ -360,7 +361,8 @@ class ParquetFileFormat
           int96RebaseSpec.mode.toString,
           int96RebaseSpec.timeZone,
           enableOffHeapColumnVector && taskContext.isDefined,
-          capacity)
+          capacity,
+          returningBatch && enableLazyRead)
         // SPARK-37089: We cannot register a task completion listener to close this iterator here
         // because downstream exec nodes have already registered their listeners. Since listeners
         // are executed in reverse order of registration, a listener registered here would close the

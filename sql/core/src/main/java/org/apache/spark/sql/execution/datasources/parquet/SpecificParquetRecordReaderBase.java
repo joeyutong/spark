@@ -18,18 +18,6 @@
 
 package org.apache.spark.sql.execution.datasources.parquet;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import scala.Option;
-
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -41,6 +29,7 @@ import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.VersionParser;
 import org.apache.parquet.VersionParser.ParsedVersion;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.BadConfigurationException;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -51,13 +40,23 @@ import org.apache.parquet.hadoop.util.ConfigurationUtil;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
-
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.StructType$;
 import org.apache.spark.util.AccumulatorV2;
+import scala.Option;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Base class for custom RecordReaders for Parquet that directly materialize to `T`.
@@ -257,6 +256,10 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
      * Reads the next row group from this reader. Returns null if there is no more row group.
      */
     PageReadStore readNextRowGroup() throws IOException;
+
+    long nextFilteredRowGroup();
+
+    PageReadStore readFilteredColumns(List<ColumnDescriptor> columnDescriptors) throws IOException ;
   }
 
   private static class ParquetRowGroupReaderImpl implements ParquetRowGroupReader {
@@ -269,6 +272,16 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
     @Override
     public PageReadStore readNextRowGroup() throws IOException {
       return reader.readNextFilteredRowGroup();
+    }
+
+    @Override
+    public long nextFilteredRowGroup() {
+      return reader.nextFilteredRowGroup();
+    }
+
+    @Override
+    public PageReadStore readFilteredColumns(List<ColumnDescriptor> columnDescriptors) throws IOException {
+      return reader.readFilteredColumns(columnDescriptors);
     }
 
     @Override

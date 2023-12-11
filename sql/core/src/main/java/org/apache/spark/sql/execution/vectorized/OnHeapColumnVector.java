@@ -16,13 +16,29 @@
  */
 package org.apache.spark.sql.execution.vectorized;
 
+import org.apache.spark.sql.types.BooleanType;
+import org.apache.spark.sql.types.ByteType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.DayTimeIntervalType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.IntegerType;
+import org.apache.spark.sql.types.LongType;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampNTZType;
+import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.YearMonthIntervalType;
+import org.apache.spark.unsafe.Platform;
+import org.apache.spark.unsafe.types.UTF8String;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-
-import org.apache.spark.sql.types.*;
-import org.apache.spark.unsafe.Platform;
-import org.apache.spark.unsafe.types.UTF8String;
 
 /**
  * A column backed by an in memory JVM array. This stores the NULLs as a byte per value
@@ -127,6 +143,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public boolean isNullAt(int rowId) {
+    assureLoad();
     return isAllNull || nulls[rowId] == 1;
   }
 
@@ -161,11 +178,13 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public boolean getBoolean(int rowId) {
+    assureLoad();
     return byteData[rowId] == 1;
   }
 
   @Override
   public boolean[] getBooleans(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     boolean[] array = new boolean[count];
     for (int i = 0; i < count; ++i) {
@@ -199,6 +218,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public byte getByte(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return byteData[rowId];
     } else {
@@ -208,6 +228,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public byte[] getBytes(int rowId, int count) {
+    assureLoad();
     byte[] array = new byte[count];
     if (dictionary == null) {
       System.arraycopy(byteData, rowId, array, 0, count);
@@ -221,11 +242,13 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   protected UTF8String getBytesAsUTF8String(int rowId, int count) {
+    assureLoad();
     return UTF8String.fromBytes(byteData, rowId, count);
   }
 
   @Override
   public ByteBuffer getByteBuffer(int rowId, int count) {
+    assureLoad();
     return ByteBuffer.wrap(byteData, rowId, count);
   }
 
@@ -259,6 +282,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public short getShort(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return shortData[rowId];
     } else {
@@ -268,6 +292,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public short[] getShorts(int rowId, int count) {
+    assureLoad();
     short[] array = new short[count];
     if (dictionary == null) {
       System.arraycopy(shortData, rowId, array, 0, count);
@@ -320,6 +345,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public int getInt(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return intData[rowId];
     } else {
@@ -329,6 +355,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public int[] getInts(int rowId, int count) {
+    assureLoad();
     int[] array = new int[count];
     if (dictionary == null) {
       System.arraycopy(intData, rowId, array, 0, count);
@@ -391,6 +418,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public long getLong(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return longData[rowId];
     } else {
@@ -400,6 +428,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public long[] getLongs(int rowId, int count) {
+    assureLoad();
     long[] array = new long[count];
     if (dictionary == null) {
       System.arraycopy(longData, rowId, array, 0, count);
@@ -448,6 +477,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public float getFloat(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return floatData[rowId];
     } else {
@@ -457,6 +487,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public float[] getFloats(int rowId, int count) {
+    assureLoad();
     float[] array = new float[count];
     if (dictionary == null) {
       System.arraycopy(floatData, rowId, array, 0, count);
@@ -507,6 +538,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public double getDouble(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return doubleData[rowId];
     } else {
@@ -516,6 +548,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public double[] getDoubles(int rowId, int count) {
+    assureLoad();
     double[] array = new double[count];
     if (dictionary == null) {
       System.arraycopy(doubleData, rowId, array, 0, count);

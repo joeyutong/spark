@@ -17,14 +17,6 @@
 
 package org.apache.spark.sql.execution.datasources.parquet;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import scala.collection.JavaConverters;
-
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -33,16 +25,26 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
-
 import org.apache.spark.memory.MemoryMode;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.vectorized.ColumnVectorUtils;
-import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
+import org.apache.spark.sql.execution.vectorized.LazyColumnVectorLoader;
 import org.apache.spark.sql.execution.vectorized.OffHeapColumnVector;
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
+import scala.collection.JavaConverters;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A specialized RecordReader that reads into InternalRows or ColumnarBatches directly using the
@@ -135,6 +137,20 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
    */
   private final MemoryMode MEMORY_MODE;
 
+  private boolean lazyRead;
+
+  /**
+   * If true, initialize column readers before reading the batch,
+   * used in lazy read mode
+   */
+  private boolean[] initColumnReaders;
+
+  /**
+   * Used to calculate how many rows to skip before reading the batch,
+   * used in lazy read mode
+   */
+  private int[] readOffsetInRowGroup;
+
   public VectorizedParquetRecordReader(
       ZoneId convertTz,
       String datetimeRebaseMode,
@@ -150,6 +166,26 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     this.int96RebaseTz = int96RebaseTz;
     MEMORY_MODE = useOffHeap ? MemoryMode.OFF_HEAP : MemoryMode.ON_HEAP;
     this.capacity = capacity;
+  }
+
+  public VectorizedParquetRecordReader(
+          ZoneId convertTz,
+          String datetimeRebaseMode,
+          String datetimeRebaseTz,
+          String int96RebaseMode,
+          String int96RebaseTz,
+          boolean useOffHeap,
+          int capacity,
+          boolean lazyRead) {
+    this(
+            convertTz,
+            datetimeRebaseMode,
+            datetimeRebaseTz,
+            int96RebaseMode,
+            int96RebaseTz,
+            useOffHeap,
+            capacity);
+    this.lazyRead = !useOffHeap && lazyRead;
   }
 
   // For test only.
@@ -263,6 +299,9 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
         vectors[i], capacity, memMode, missingColumns);
     }
 
+    initColumnReaders = new boolean[columnVectors.length];
+    readOffsetInRowGroup = new int[columnVectors.length];
+
     if (partitionColumns != null) {
       int partitionIdx = sparkSchema.fields().length;
       for (int i = 0; i < partitionColumns.fields().length; i++) {
@@ -309,15 +348,23 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     checkEndOfRowGroup();
 
     int num = (int) Math.min(capacity, totalCountLoadedSoFar - rowsReturned);
-    for (ParquetColumnVector cv : columnVectors) {
-      for (ParquetColumnVector leafCv : cv.getLeaves()) {
-        VectorizedColumnReader columnReader = leafCv.getColumnReader();
-        if (columnReader != null) {
-          columnReader.readBatch(num, leafCv.getValueVector(),
-            leafCv.getRepetitionLevelVector(), leafCv.getDefinitionLevelVector());
+    if (!lazyRead) {
+      for (ParquetColumnVector cv : columnVectors) {
+        for (ParquetColumnVector leafCv : cv.getLeaves()) {
+          VectorizedColumnReader columnReader = leafCv.getColumnReader();
+          if (columnReader != null) {
+            columnReader.readBatch(num, leafCv.getValueVector(),
+                    leafCv.getRepetitionLevelVector(), leafCv.getDefinitionLevelVector());
+          }
         }
+        cv.assemble();
       }
-      cv.assemble();
+    } else {
+      for (int i = 0; i < columnVectors.length; i++) {
+        columnVectors[i].getValueVector().setLoader(
+                new ParquetColumnVectorLoader(i, num));
+        readOffsetInRowGroup[i] += num;
+      }
     }
 
     rowsReturned += num;
@@ -385,15 +432,30 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
 
   private void checkEndOfRowGroup() throws IOException {
     if (rowsReturned != totalCountLoadedSoFar) return;
-    PageReadStore pages = reader.readNextRowGroup();
-    if (pages == null) {
+    if (!lazyRead) {
+      PageReadStore pages = reader.readNextRowGroup();
+      if (pages == null) {
+        throw new IOException("expecting more rows but reached last block. Read "
+                + rowsReturned + " out of " + totalRowCount);
+      }
+      for (ParquetColumnVector cv : columnVectors) {
+        initColumnReader(pages, cv);
+      }
+      totalCountLoadedSoFar += pages.getRowCount();
+    } else {
+      advanceToNextRowGroup();
+    }
+  }
+
+  private void advanceToNextRowGroup() throws IOException {
+    long num = reader.nextFilteredRowGroup();
+    if (num == -1) {
       throw new IOException("expecting more rows but reached last block. Read "
-          + rowsReturned + " out of " + totalRowCount);
+              + rowsReturned + " out of " + totalRowCount);
     }
-    for (ParquetColumnVector cv : columnVectors) {
-      initColumnReader(pages, cv);
-    }
-    totalCountLoadedSoFar += pages.getRowCount();
+    totalCountLoadedSoFar += num;
+    Arrays.fill(initColumnReaders, true);
+    Arrays.fill(readOffsetInRowGroup, 0);
   }
 
   private void initColumnReader(PageReadStore pages, ParquetColumnVector cv) throws IOException {
@@ -410,6 +472,69 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
           initColumnReader(pages, childCv);
         }
       }
+    }
+  }
+
+  private final class ParquetColumnVectorLoader implements LazyColumnVectorLoader {
+    private final int ordinal;
+    private final int readNum;
+    private boolean loaded;
+
+    public ParquetColumnVectorLoader(int ordinal, int readNum) {
+      this.ordinal = ordinal;
+      this.readNum = readNum;
+    }
+
+    public void load(ColumnVector column) {
+      if (loaded) {
+        return;
+      }
+
+      ParquetColumnVector cv = columnVectors[ordinal];
+      try {
+        if (initColumnReaders[ordinal]) {
+          prepare(cv);
+          initColumnReaders[ordinal] = false;
+        }
+
+        seek(cv);
+        readBatch(cv, readNum);
+        cv.assemble();
+      } catch (IOException ex) {
+        throw new RuntimeException("read parquet error", ex);
+      }
+
+      loaded = true;
+    }
+
+    private void prepare(ParquetColumnVector cv) throws IOException {
+      List<ColumnDescriptor> leafColumns = cv.getLeaves().stream()
+              .map(leaf -> leaf.getColumn().descriptor().get())
+              .collect(Collectors.toList());
+      PageReadStore pages = reader.readFilteredColumns(leafColumns);
+      initColumnReader(pages, cv);
+    }
+
+    private void readBatch(ParquetColumnVector cv, int total) throws IOException {
+      for (ParquetColumnVector leafCv : cv.getLeaves()) {
+        VectorizedColumnReader columnReader = leafCv.getColumnReader();
+        if (columnReader != null) {
+          columnReader.readBatch(total, leafCv.getValueVector(),
+                  leafCv.getRepetitionLevelVector(), leafCv.getDefinitionLevelVector());
+        }
+      }
+    }
+
+    private void seek(ParquetColumnVector cv) throws IOException {
+      int offset = readOffsetInRowGroup[ordinal] - readNum;
+      if (offset > 0) {
+        while (offset >= capacity) {
+          readBatch(cv, capacity);
+          cv.reset();
+          offset -= capacity; // offset = n * capacity
+        }
+      }
+      readOffsetInRowGroup[ordinal] = 0;
     }
   }
 }
