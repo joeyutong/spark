@@ -127,6 +127,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public boolean isNullAt(int rowId) {
+    assureLoad();
     return isAllNull || nulls[rowId] == 1;
   }
 
@@ -161,11 +162,13 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public boolean getBoolean(int rowId) {
+    assureLoad();
     return byteData[rowId] == 1;
   }
 
   @Override
   public boolean[] getBooleans(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     boolean[] array = new boolean[count];
     for (int i = 0; i < count; ++i) {
@@ -199,6 +202,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public byte getByte(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return byteData[rowId];
     } else {
@@ -208,6 +212,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public byte[] getBytes(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     byte[] array = new byte[count];
     System.arraycopy(byteData, rowId, array, 0, count);
@@ -216,11 +221,13 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   protected UTF8String getBytesAsUTF8String(int rowId, int count) {
+    assureLoad();
     return UTF8String.fromBytes(byteData, rowId, count);
   }
 
   @Override
   public ByteBuffer getByteBuffer(int rowId, int count) {
+    assureLoad();
     return ByteBuffer.wrap(byteData, rowId, count);
   }
 
@@ -254,6 +261,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public short getShort(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return shortData[rowId];
     } else {
@@ -263,6 +271,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public short[] getShorts(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     short[] array = new short[count];
     System.arraycopy(shortData, rowId, array, 0, count);
@@ -310,6 +319,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public int getInt(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return intData[rowId];
     } else {
@@ -319,6 +329,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public int[] getInts(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     int[] array = new int[count];
     System.arraycopy(intData, rowId, array, 0, count);
@@ -376,6 +387,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public long getLong(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return longData[rowId];
     } else {
@@ -385,6 +397,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public long[] getLongs(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     long[] array = new long[count];
     System.arraycopy(longData, rowId, array, 0, count);
@@ -428,6 +441,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public float getFloat(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return floatData[rowId];
     } else {
@@ -437,6 +451,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public float[] getFloats(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     float[] array = new float[count];
     System.arraycopy(floatData, rowId, array, 0, count);
@@ -482,6 +497,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public double getDouble(int rowId) {
+    assureLoad();
     if (dictionary == null) {
       return doubleData[rowId];
     } else {
@@ -491,6 +507,7 @@ public final class OnHeapColumnVector extends WritableColumnVector {
 
   @Override
   public double[] getDoubles(int rowId, int count) {
+    assureLoad();
     assert(dictionary == null);
     double[] array = new double[count];
     System.arraycopy(doubleData, rowId, array, 0, count);

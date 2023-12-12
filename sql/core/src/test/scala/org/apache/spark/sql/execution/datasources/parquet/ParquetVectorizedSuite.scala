@@ -689,6 +689,11 @@ class ParquetVectorizedSuite extends QueryTest with ParquetTest with SharedSpark
     }
 
     override def close(): Unit = {}
+
+    override def nextFilteredRowGroup(): Long = -1
+
+    override def readFilteredColumns(columnDescriptors: java.util.List[ColumnDescriptor])
+      : PageReadStore = null
   }
 
   private case class TestPageReadStore(

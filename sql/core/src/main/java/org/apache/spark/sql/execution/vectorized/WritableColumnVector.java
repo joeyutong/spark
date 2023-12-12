@@ -49,6 +49,24 @@ import org.apache.spark.unsafe.types.UTF8String;
 public abstract class WritableColumnVector extends ColumnVector {
   private final byte[] byte8 = new byte[8];
 
+  protected boolean loaded;
+  protected LazyColumnVectorLoader loader;
+
+  public void setLoader(LazyColumnVectorLoader loader) {
+    loaded = false;
+    this.loader = loader;
+  }
+
+  protected void assureLoad() {
+    if (loader == null || loaded) {
+      return;
+    }
+
+    loaded = true;  // set true in advance to avoid executing assureLoad again in loader
+    loader.load(this);
+    loader = null;
+  }
+
   /**
    * Resets this column for writing. The currently stored values are no longer accessible.
    */

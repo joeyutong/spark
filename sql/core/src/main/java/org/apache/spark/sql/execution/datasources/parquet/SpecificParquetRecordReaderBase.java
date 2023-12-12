@@ -31,6 +31,7 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.parquet.VersionParser;
 import org.apache.parquet.VersionParser.ParsedVersion;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import scala.Option;
 
@@ -252,6 +253,10 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
      * Reads the next row group from this reader. Returns null if there is no more row group.
      */
     PageReadStore readNextRowGroup() throws IOException;
+
+    long nextFilteredRowGroup();
+
+    PageReadStore readFilteredColumns(List<ColumnDescriptor> columnDescriptors) throws IOException ;
   }
 
   private static class ParquetRowGroupReaderImpl implements ParquetRowGroupReader {
@@ -264,6 +269,16 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
     @Override
     public PageReadStore readNextRowGroup() throws IOException {
       return reader.readNextFilteredRowGroup();
+    }
+
+    @Override
+    public long nextFilteredRowGroup() {
+      return reader.nextFilteredRowGroup();
+    }
+
+    @Override
+    public PageReadStore readFilteredColumns(List<ColumnDescriptor> columnDescriptors) throws IOException {
+      return reader.readFilteredColumns(columnDescriptors);
     }
 
     @Override
