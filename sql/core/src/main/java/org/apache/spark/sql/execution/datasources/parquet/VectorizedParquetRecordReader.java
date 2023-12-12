@@ -27,6 +27,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.memory.MemoryMode;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.execution.datasources.SchemaColumnConvertNotSupportedException;
 import org.apache.spark.sql.execution.vectorized.ColumnVectorUtils;
 import org.apache.spark.sql.execution.vectorized.LazyColumnVectorLoader;
 import org.apache.spark.sql.execution.vectorized.OffHeapColumnVector;
@@ -500,6 +501,12 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
         seek(cv);
         readBatch(cv, readNum);
         cv.assemble();
+      } catch (SchemaColumnConvertNotSupportedException ex) {
+        throw new RuntimeException(
+                "Parquet column cannot be converted in file " + file
+                        + ". Column: " + ex.getColumn()
+                        + ", Expected: " + ex.getLogicalType()
+                        + ", Found: " + ex.getPhysicalType(), ex);
       } catch (IOException ex) {
         throw new RuntimeException("read parquet error", ex);
       }

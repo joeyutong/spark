@@ -1027,7 +1027,9 @@ class ParquetSchemaSuite extends ParquetSchemaTest {
   test("schema mismatch failure error message for parquet vectorized reader") {
     withTempPath { dir =>
       val e = testSchemaMismatch(dir.getCanonicalPath, vectorizedReaderEnabled = true)
-      assert(e.getCause.isInstanceOf[QueryExecutionException])
+      if (!conf.parquetLazyReadEnabled) {
+        assert(e.getCause.isInstanceOf[QueryExecutionException])
+      }
       assert(e.getCause.getCause.isInstanceOf[SchemaColumnConvertNotSupportedException])
 
       // Check if the physical type is reporting correctly
