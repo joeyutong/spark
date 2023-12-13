@@ -280,7 +280,8 @@ public abstract class SpecificParquetRecordReaderBase<T> extends RecordReader<Vo
     }
 
     @Override
-    public PageReadStore readFilteredColumns(List<ColumnDescriptor> columnDescriptors) throws IOException {
+    public PageReadStore readFilteredColumns(
+            List<ColumnDescriptor> columnDescriptors) throws IOException {
       return reader.readFilteredColumns(columnDescriptors);
     }
 

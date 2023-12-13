@@ -481,7 +481,7 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
     private final int readNum;
     private boolean loaded;
 
-    public ParquetColumnVectorLoader(int ordinal, int readNum) {
+    ParquetColumnVectorLoader(int ordinal, int readNum) {
       this.ordinal = ordinal;
       this.readNum = readNum;
     }

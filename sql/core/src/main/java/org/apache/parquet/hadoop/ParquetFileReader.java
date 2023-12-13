@@ -140,8 +140,8 @@ public class ParquetFileReader implements Closeable {
    * @deprecated metadata files are not recommended and will be removed in 2.0.0
    */
   @Deprecated
-  public static List<Footer> readAllFootersInParallelUsingSummaryFiles
-  (Configuration configuration, List<FileStatus> partFiles) throws IOException {
+  public static List<Footer> readAllFootersInParallelUsingSummaryFiles(
+          Configuration configuration, List<FileStatus> partFiles) throws IOException {
     return readAllFootersInParallelUsingSummaryFiles(configuration, partFiles, false);
   }
 
@@ -549,14 +549,15 @@ public class ParquetFileReader implements Closeable {
     }
   }
 
-  private static final ParquetMetadata readFooter(
+  private static ParquetMetadata readFooter(
           InputFile file, ParquetReadOptions options, SeekableInputStream f) throws IOException {
     ParquetMetadataConverter converter = new ParquetMetadataConverter(options);
     return readFooter(file, options, f, converter);
   }
 
-  private static final ParquetMetadata readFooter(InputFile file, ParquetReadOptions options,
-                                                  SeekableInputStream f, ParquetMetadataConverter converter) throws IOException {
+  private static ParquetMetadata readFooter(InputFile file, ParquetReadOptions options,
+                                            SeekableInputStream f,
+                                            ParquetMetadataConverter converter) throws IOException {
 
     long fileLen = file.getLength();
     String filePath = file.toString();
@@ -1110,10 +1111,11 @@ public class ParquetFileReader implements Closeable {
   }
 
   /**
-   * Reads all the columns requested from the row group at the current file position. It may skip specific pages based
-   * on the column indexes according to the actual filter. As the rows are not aligned among the pages of the different
-   * columns row synchronization might be required. See the documentation of the class SynchronizingColumnReader for
-   * details.
+   * Reads all the columns requested from the row group at the current file position.
+   * It may skip specific pages based on the column indexes according to the actual filter.
+   * As the rows are not aligned among the pages of the different columns
+   * row synchronization might be required.
+   * See the documentation of the class SynchronizingColumnReader for details.
    *
    * @return the PageReadStore which can provide PageReaders for each column
    * @throws IOException
@@ -1333,7 +1335,8 @@ public class ParquetFileReader implements Closeable {
             .getDecompressor(meta.getCodec());
 
     return new DictionaryPage(
-            decompressor.decompress(compressedPage.getBytes(), compressedPage.getUncompressedSize()),
+            decompressor.decompress(compressedPage.getBytes(),
+                    compressedPage.getUncompressedSize()),
             compressedPage.getDictionarySize(),
             compressedPage.getEncoding());
   }
@@ -1509,8 +1512,9 @@ public class ParquetFileReader implements Closeable {
   }
 
   /*
-   * Builder to concatenate the buffers of the discontinuous parts for the same column. These parts are generated as a
-   * result of the column-index based filtering when some pages might be skipped at reading.
+   * Builder to concatenate the buffers of the discontinuous parts for the same column.
+   * These parts are generated as a result of the column-index based filtering
+   * when some pages might be skipped at reading.
    */
   private class ChunkListBuilder {
     private class ChunkData {
@@ -1573,7 +1577,7 @@ public class ParquetFileReader implements Closeable {
      * @param buffers ByteBuffers that contain the chunk
      * @param offsetIndex the offset index for this column; might be null
      */
-    public Chunk(ChunkDescriptor descriptor, List<ByteBuffer> buffers, OffsetIndex offsetIndex) {
+    Chunk(ChunkDescriptor descriptor, List<ByteBuffer> buffers, OffsetIndex offsetIndex) {
       this.descriptor = descriptor;
       this.stream = ByteBufferInputStream.wrap(buffers);
       this.offsetIndex = offsetIndex;
@@ -1626,7 +1630,8 @@ public class ParquetFileReader implements Closeable {
       while (hasMorePages(valuesCountReadSoFar, dataPageCountReadSoFar)) {
         byte[] pageHeaderAAD = dataPageHeaderAAD;
         if (null != headerBlockDecryptor) {
-          // Important: this verifies file integrity (makes sure dictionary page had not been removed)
+          // Important: this verifies file integrity
+          // (makes sure dictionary page had not been removed)
           if (null == dictionaryPage && descriptor.metadata.hasDictionaryPage()) {
             pageHeaderAAD = AesCipher.createModuleAAD(aadPrefix, ModuleType.DictionaryPageHeader,
                     rowGroupOrdinal, columnOrdinal, -1);
@@ -1649,7 +1654,8 @@ public class ParquetFileReader implements Closeable {
             pageBytes = this.readAsBytesInput(compressedPageSize);
             if (options.usePageChecksumVerification() && pageHeader.isSetCrc()) {
               verifyCrc(pageHeader.getCrc(), pageBytes.toByteArray(),
-                      "could not verify dictionary page integrity, CRC checksum verification failed");
+                      "could not verify dictionary page integrity, " +
+                              "CRC checksum verification failed");
             }
             DictionaryPageHeader dicHeader = pageHeader.getDictionary_page_header();
             dictionaryPage =
@@ -1714,7 +1720,8 @@ public class ParquetFileReader implements Closeable {
             ++dataPageCountReadSoFar;
             break;
           default:
-            LOG.debug("skipping page of type {} of size {}", pageHeader.getType(), compressedPageSize);
+            LOG.debug("skipping page of type {} of size {}", pageHeader.getType(),
+                    compressedPageSize);
             stream.skipFully(compressedPageSize);
             break;
         }
@@ -1724,8 +1731,10 @@ public class ParquetFileReader implements Closeable {
         throw new IOException(
                 "Expected " + descriptor.metadata.getValueCount() + " values in column chunk at " +
                         getPath() + " offset " + descriptor.metadata.getFirstDataPageOffset() +
-                        " but got " + valuesCountReadSoFar + " values instead over " + pagesInChunk.size()
-                        + " pages ending at file offset " + (descriptor.fileOffset + stream.position()));
+                        " but got " + valuesCountReadSoFar
+                        + " values instead over " + pagesInChunk.size()
+                        + " pages ending at file offset "
+                        + (descriptor.fileOffset + stream.position()));
       }
       BytesInputDecompressor decompressor =
               options.getCodecFactory().getDecompressor(descriptor.metadata.getCodec());
@@ -1788,7 +1797,8 @@ public class ParquetFileReader implements Closeable {
         // if the last page is smaller than this, the page header itself is truncated in the buffer.
         stream.reset(); // resetting the buffer to the position before we got the error
         LOG.info("completing the column chunk to read the page header");
-        pageHeader = Util.readPageHeader(new SequenceInputStream(stream, f)); // trying again from the buffer + remainder of the stream.
+        // trying again from the buffer + remainder of the stream.
+        pageHeader = Util.readPageHeader(new SequenceInputStream(stream, f));
       }
       return pageHeader;
     }
@@ -1865,7 +1875,8 @@ public class ParquetFileReader implements Closeable {
   }
 
   /**
-   * Describes a list of consecutive parts to be read at once. A consecutive part may contain whole column chunks or
+   * Describes a list of consecutive parts to be read at once.
+   * A consecutive part may contain whole column chunks or
    * only parts of them (some pages).
    */
   private class ConsecutivePartList {
