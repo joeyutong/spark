@@ -66,7 +66,7 @@ public abstract class WritableColumnVector extends ColumnVector {
   }
 
   protected void assureLoad() {
-    if (loader == null || loaded) {
+    if (loaded || loader == null) {
       return;
     }
 

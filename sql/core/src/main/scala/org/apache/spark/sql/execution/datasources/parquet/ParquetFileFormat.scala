@@ -362,7 +362,7 @@ class ParquetFileFormat
           int96RebaseSpec.timeZone,
           enableOffHeapColumnVector && taskContext.isDefined,
           capacity,
-          returningBatch && enableLazyRead)
+          returningBatch && pushed.isDefined && enableLazyRead)
         // SPARK-37089: We cannot register a task completion listener to close this iterator here
         // because downstream exec nodes have already registered their listeners. Since listeners
         // are executed in reverse order of registration, a listener registered here would close the
