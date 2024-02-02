@@ -532,11 +532,20 @@ public class VectorizedParquetRecordReader extends SpecificParquetRecordReaderBa
       }
     }
 
+    private void skipBatch(ParquetColumnVector cv, int total) throws IOException {
+      for (ParquetColumnVector leafCv : cv.getLeaves()) {
+        VectorizedColumnReader columnReader = leafCv.getColumnReader();
+        if (columnReader != null) {
+          columnReader.skip(total);
+        }
+      }
+    }
+
     private void seek(ParquetColumnVector cv) throws IOException {
       int offset = readOffsetInRowGroup[ordinal] - readNum;
       if (offset > 0) {
         while (offset >= capacity) {
-          readBatch(cv, capacity);
+          skipBatch(cv, capacity);
           cv.reset();
           offset -= capacity; // offset = n * capacity
         }

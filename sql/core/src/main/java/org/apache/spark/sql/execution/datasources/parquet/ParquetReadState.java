@@ -174,16 +174,43 @@ final class ParquetReadState {
     }
   }
 
+  void skip(long total) {
+    long newRangeStart = currentRangeStart();
+    long valuesToReadInRange;
+    if (rowId > currentRangeEnd()) {
+      valuesToReadInRange = 0;
+    } else if (rowId < currentRangeStart()) {
+      valuesToReadInRange = currentRangeEnd() - currentRangeStart() + 1;
+    } else {
+      valuesToReadInRange = currentRangeEnd() - rowId + 1;
+      newRangeStart = rowId;
+    }
+
+    while (total >= valuesToReadInRange) {
+      total -= valuesToReadInRange;
+      nextRange();
+      newRangeStart = currentRangeStart();
+      valuesToReadInRange = currentRangeEnd() - currentRangeStart() + 1;
+    }
+
+    newRangeStart += total;
+    currentRange.setStart(newRangeStart);
+  }
+
   /**
    * Helper struct to represent a range of row indexes `[start, end]`.
    */
   private static class RowRange {
-    final long start;
+    long start;
     final long end;
 
     RowRange(long start, long end) {
       this.start = start;
       this.end = end;
+    }
+
+    void setStart(long start) {
+      this.start = start;
     }
   }
 }

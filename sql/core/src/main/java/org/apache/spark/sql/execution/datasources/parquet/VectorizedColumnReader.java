@@ -189,6 +189,9 @@ public class VectorizedColumnReader {
           // don't know where the list will end until we've seen all the pages.
           break;
         }
+        if (pageFirstRowIndex == 0) {
+          pageFirstRowIndex = readState.rowId;
+        }
         readState.resetForNewPage(pageValueCount, pageFirstRowIndex);
       }
       PrimitiveType.PrimitiveTypeName typeName =
@@ -256,6 +259,10 @@ public class VectorizedColumnReader {
         }
       }
     }
+  }
+
+  void skip(int total) {
+    readState.skip(total);
   }
 
   private int readPage() {
