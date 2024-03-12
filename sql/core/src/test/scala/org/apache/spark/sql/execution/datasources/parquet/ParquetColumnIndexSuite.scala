@@ -18,6 +18,7 @@
 package org.apache.spark.sql.execution.datasources.parquet
 
 import org.apache.spark.sql.{DataFrame, QueryTest}
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.test.SharedSparkSession
 
 class ParquetColumnIndexSuite extends QueryTest with ParquetTest with SharedSparkSession {
@@ -49,10 +50,13 @@ class ParquetColumnIndexSuite extends QueryTest with ParquetTest with SharedSpar
             .option("parquet.enable.dictionary", enableDictionary.toString)
             .parquet(file.getCanonicalPath)
 
-        val parquetDf = spark.read.parquet(file.getCanonicalPath)
-
-        actions.foreach { action =>
-          checkAnswer(action(parquetDf), action(df))
+        withSQLConf(
+          SQLConf.PARQUET_VECTORIZED_READER_BATCH_SIZE.key -> "100",
+          SQLConf.PARQUET_VECTORIZED_READER_NESTED_COLUMN_ENABLED.key -> "true") {
+          val parquetDf = spark.read.parquet(file.getCanonicalPath)
+          actions.foreach { action =>
+            checkAnswer(action(parquetDf), action(df))
+          }
         }
       })
     }
@@ -104,7 +108,8 @@ class ParquetColumnIndexSuite extends QueryTest with ParquetTest with SharedSpar
   }
 
   test("reading unaligned pages - struct type") {
-    val df = (0 until 2000).map(i => Tuple1((i.toLong, i + ":" + "o" * (i / 100)))).toDF("s")
+    val df = (0 until 2000).map(i => Tuple2(i, Tuple2(i.toLong, i + ":" + "o" * (i / 100))))
+      .toDF("i", "s")
     checkUnalignedPages(df)(
       df => df.filter("s._1 = 500"),
       df => df.filter("s._1 = 500 or s._1 = 1500"),
@@ -112,7 +117,15 @@ class ParquetColumnIndexSuite extends QueryTest with ParquetTest with SharedSpar
       df => df.filter("s._1 = 500 or s._1 = 501 or s._1 = 1000 or s._1 = 1500"),
       // range filter
       df => df.filter("s._1 >= 500 and s._1 < 1000"),
-      df => df.filter("(s._1 >= 500 and s._1 < 1000) or (s._1 >= 1500 and s._1 < 1600)")
+      df => df.filter("(s._1 >= 500 and s._1 < 1000) or (s._1 >= 1500 and s._1 < 1600)"),
+      df => df.filter("s._1 = 500"),
+
+      df => df.filter("i = 500 or i = 1500"),
+      df => df.filter("i = 500 or i = 501 or i = 1500"),
+      df => df.filter("i = 500 or i = 501 or i = 1000 or i = 1500"),
+      // range filter
+      df => df.filter("i >= 500 and i < 1000"),
+      df => df.filter("(i >= 500 and i < 1000) or (i >= 1500 and i < 1600)")
     )
   }
 }

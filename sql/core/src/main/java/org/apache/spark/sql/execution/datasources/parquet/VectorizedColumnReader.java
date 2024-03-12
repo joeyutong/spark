@@ -211,6 +211,9 @@ public class VectorizedColumnReader {
             dictionaryIds, column, (VectorizedValuesReader) dataColumn);
         }
 
+        if (startOffset > 0 && isLazyDecodingSupported(typeName) && !column.hasDictionary()) {
+          throw new RuntimeException("unexpected dictionary encoded");
+        }
         // TIMESTAMP_MILLIS encoded as INT64 can't be lazily decoded as we need to post process
         // the values to add microseconds precision.
         if (column.hasDictionary() || (startRowId == pageFirstRowIndex &&
